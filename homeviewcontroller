@@ -1,0 +1,196 @@
+//
+//  HomeViewController.swift
+//  U-Don
+//
+//  Created by Young Jei Lee on 01/12/2019.
+//  Copyright © 2019 Young Jei. All rights reserved.
+//  Test ad for Rewarded video "ca-app-pub-3940256099942544/1712485313"
+//  Test ad for Banner ad "ca-app-pub-3940256099942544/2934735716"
+//
+
+import UIKit
+import GoogleMobileAds
+import FirebaseAuth
+import Firebase
+import FirebaseFirestore
+import FirebaseDatabase
+
+class HomeViewController: UIViewController, GADRewardBasedVideoAdDelegate {
+    var db: Firestore!
+    let userID = Auth.auth().currentUser?.uid   //lets you retrieve current user uid
+        
+    @IBOutlet weak var testLabel: UILabel?
+    @IBOutlet weak var bannerView: GADBannerView!
+    @IBOutlet weak var donateeInfoButton: UIButton!
+    @IBOutlet weak var aboutUsButton: UIButton!
+    @IBOutlet weak var scoreText: UILabel?
+    @IBOutlet weak var watchAdButton: UIButton!
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        // Check if a user is signed in
+        //                                            authenticateUserConfigureView()
+        // [START setup]
+        let settings = FirestoreSettings()
+        Firestore.firestore().settings = settings
+        // [END setup]
+        db = Firestore.firestore()
+        
+      
+
+         GADRewardBasedVideoAd.sharedInstance().load(GADRequest(),
+        withAdUnitID: "ca-app-pub-3940256099942544/1712485313")
+        GADRewardBasedVideoAd.sharedInstance().delegate = self
+        
+        
+        bannerView.adUnitID = "ca-app-pub-3940256099942544/2934735716"
+        bannerView.rootViewController = self
+        bannerView.load(GADRequest())
+
+        setUpElements()
+        presentWelcomeMessage()
+        presentInititalScore()
+        
+    }
+   
+    func presentWelcomeMessage() {
+        if let userId = Auth.auth().currentUser?.uid {
+            let collectionRef = self.db.collection("users")
+            let thisUserDoc = collectionRef.document(userId)
+            thisUserDoc.getDocument(completion: { document, error in
+                if let err = error {
+                    print(err.localizedDescription)
+                    return
+                }
+                if let doc = document {
+                    let welcomeName = doc.get("firstname") ?? "No Name"
+                    print("Hey, \(welcomeName) welcome!")
+                    self.testLabel?.text = "Hello, \(welcomeName) welcome!"
+
+                }
+            })
+        }
+    }
+    
+    func presentInititalScore() {
+        if let userId = Auth.auth().currentUser?.uid {
+            let collectionRef = self.db.collection("users")
+            let thisUserDoc = collectionRef.document(userId)
+            thisUserDoc.getDocument(completion: { document, error in
+                if let err = error {
+                    print(err.localizedDescription)
+                    return
+                }
+                if let doc = document {
+                    let presentInitialScore = doc.get("points") ?? "No points"
+                    self.scoreText?.text = "Number of ads watched: \(presentInitialScore)"
+                }
+            })
+        }
+    }
+    
+    func setUpElements() {
+          
+        Utilities.styleFilledButton(aboutUsButton)
+        Utilities.styleFilledButton(watchAdButton)
+        Utilities.styleFilledButton(donateeInfoButton)
+        Utilities.styleLabel(scoreText!)
+    }
+    
+    
+    @IBAction func playVideo(_ sender: Any) {
+        if GADRewardBasedVideoAd.sharedInstance().isReady == true{
+            GADRewardBasedVideoAd.sharedInstance().present(fromRootViewController: self )
+        }
+    }
+    
+    func rewardBasedVideoAdDidClose(_ rewardBasedVideoAd: GADRewardBasedVideoAd) {
+      
+        GADRewardBasedVideoAd.sharedInstance().load(GADRequest(), withAdUnitID: "ca-app-pub-3940256099942544/1712485313")
+        GADRewardBasedVideoAd.sharedInstance().delegate = self
+        
+    }
+    
+    func rewardBasedVideoAd(_ rewardBasedVideoAd: GADRewardBasedVideoAd, didRewardUserWith reward: GADAdReward) {
+        //[START update_document-increment
+        let docRef = self.db.collection("users").document(userID!)
+        // Atomically increment the population of the city by 1.
+        docRef.updateData([
+            "points": FieldValue.increment(Int64(100))
+        ])
+        //[END update_document-increment]
+        docRef.getDocument(completion: { document, error in
+            if let err = error {
+                print(err.localizedDescription)
+                return
+            }
+            if let err = error {
+                    print(err.localizedDescription)
+                    return
+                }
+                if let doc = document {
+                    let presentInitialScore = doc.get("points") ?? "No points"
+                    self.scoreText?.text = "Gold coins: \(presentInitialScore)"
+                }
+            })
+        
+        
+    }
+    
+    
+    
+    //------------------------------------------------------------------------------------------------------
+    //
+    //Changing root view controller
+    //
+    //------------------------------------------------------------------------------------------------------
+
+    
+    @objc func handleSignOut(){
+        let alertController = UIAlertController(title: nil, message: "Are you sure you want to sign out?", preferredStyle: .actionSheet)
+        alertController.addAction(UIAlertAction(title: "Sign Out", style: .destructive, handler: { (_) in
+        self.signOut()
+        }))
+        alertController.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+        present(alertController, animated: true, completion: nil)
+    }
+    
+    
+    func signOut() {
+        do{
+            try Auth.auth().signOut()
+            let navController = UINavigationController(rootViewController: ViewController())
+            navController.navigationBar.barStyle = .default
+            self.present(navController, animated: true, completion: nil)
+        } catch let error {
+            print("Failed to sign out with error...", error)
+        }
+    }
+    
+    func authenticateUserConfigureView() {
+        
+        if Auth.auth().currentUser == nil {
+            DispatchQueue.main.async {
+                let navController = UINavigationController(rootViewController: ViewController())
+                navController.navigationBar.barStyle = .default
+                self.present(navController, animated: true, completion: nil)
+            }
+        } else{
+            configureViewComponents()
+        }
+        
+    }
+        
+    func configureViewComponents() {
+        view.backgroundColor = .white
+        
+        navigationItem.title = "Home page"
+        
+        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "Sign out", style: .plain, target: self, action: #selector(handleSignOut))
+        
+        navigationItem.leftBarButtonItem?.tintColor = .darkGray
+        navigationController?.navigationBar.barTintColor = .none
+        
+    }
+   
+
+}
